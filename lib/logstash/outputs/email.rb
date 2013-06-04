@@ -32,47 +32,19 @@ class LogStash::Outputs::Email < LogStash::Outputs::Base
   # how to send email: either smtp or sendmail - default to 'smtp'
   config :via, :validate => :string, :default => "smtp"
 
-  # the options to use:
-  # smtp: address, port, enable_starttls_auto, user_name, password, authentication(bool), domain
-  # sendmail: location, arguments
-  # If you do not specify anything, you will get the following equivalent code set in
-  # every new mail object:
-  #
-  #   Mail.defaults do
-  #     delivery_method :smtp, { :address              => "localhost",
-  #                              :port                 => 25,
-  #                              :domain               => 'localhost.localdomain',
-  #                              :user_name            => nil,
-  #                              :password             => nil,
-  #                              :authentication       => nil,(plain, login and cram_md5)
-  #                              :enable_starttls_auto => true  }
-  #
-  #     retriever_method :pop3, { :address             => "localhost",
-  #                               :port                => 995,
-  #                               :user_name           => nil,
-  #                               :password            => nil,
-  #                               :enable_ssl          => true }
-  #   end
-  #
-  #   Mail.delivery_method.new  #=> Mail::SMTP instance
-  #   Mail.retriever_method.new #=> Mail::POP3 instance
-  #
-  # Each mail object inherits the default set in Mail.delivery_method, however, on
-  # a per email basis, you can override the method:
-  #
-  #   mail.delivery_method :sendmail
-  #
-  # Or you can override the method and pass in settings:
-  #
-  #   mail.delivery_method :sendmail, { :address => 'some.host' }
-  #
-  # You can also just modify the settings:
-  #
-  #   mail.delivery_settings = { :address => 'some.host' }
-  #
-  # The passed in hash is just merged against the defaults with +merge!+ and the result
-  # assigned the mail object.  So the above example will change only the :address value
-  # of the global smtp_settings to be 'some.host', keeping all other values
+  # Override the default settings for sending mail if via is set to "smtp".
+  # The default settings are:
+  #     options => [ "smtpIporHost", "localhost",
+  #                  "port", "25",
+  #                  "domain", "localhost",
+  #                  "userName", nil
+  #                  "password", nil
+  #                  "authenticationType", nil
+  #                  "starttls", false
+  #                  "debug", false ]
+  # The "domain" setting appears to be what is passed to Net::SMTP as the helo_domain option.
+  # Note: the names of some of these settings differ from their equivalents in the
+  # Ruby lib that this output uses to send mail (https://github.com/mikel/mail).
   config :options, :validate => :hash, :default => {}
 
   # subject for email
