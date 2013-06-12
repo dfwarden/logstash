@@ -1,6 +1,5 @@
 require "logstash/filters/base"
 require "logstash/namespace"
-require "logstash/time_addon"
 
 # The mutate filter allows you to do general mutations to fields. You
 # can rename, remove, replace, and modify fields in your events.
@@ -31,7 +30,10 @@ class LogStash::Filters::Mutate < LogStash::Filters::Base
   #         remove => [ "client" ]  # Removes the 'client' field
   #       }
   #     }
-  config :remove, :validate => :array
+  #
+  # This option is deprecated, instead use remove_field option available in all
+  # filters.
+  config :remove, :validate => :array, :deprecated => true
 
   # Replace a field with a new value. The new value can include %{foo} strings
   # to help you build a new value from other parts of the event.
@@ -201,6 +203,7 @@ class LogStash::Filters::Mutate < LogStash::Filters::Base
     return unless filter?(event)
 
     rename(event) if @rename
+    update(event) if @update
     replace(event) if @replace
     convert(event) if @convert
     gsub(event) if @gsub

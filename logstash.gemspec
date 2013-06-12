@@ -26,11 +26,12 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency "i18n"               #(MIT license)
 
   # Web dependencies
-  gem.add_runtime_dependency "ftw", ["~> 0.0.29"] #(Apache 2.0 license)
+  gem.add_runtime_dependency "ftw", ["~> 0.0.34"] #(Apache 2.0 license)
   gem.add_runtime_dependency "haml"               #(MIT license)
   gem.add_runtime_dependency "rack"               #(MIT license)
   gem.add_runtime_dependency "sass"               #(MIT license)
   gem.add_runtime_dependency "sinatra"            #(MIT license)
+  gem.add_runtime_dependency "mime-types"         #(GPL 2.0)
 
   # Input/Output/Filter dependencies
   #TODO Can these be optional?
@@ -39,6 +40,7 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency "heroku"                           #(MIT license)
   gem.add_runtime_dependency "addressable"                      #(Apache 2.0 license)
   gem.add_runtime_dependency "bunny", ["0.8.0"]                 #(MIT license)
+  gem.add_runtime_dependency "extlib", ["0.9.16"]               #(MIT license)
   gem.add_runtime_dependency "ffi"                              #(LGPL-3 license)
   gem.add_runtime_dependency "ffi-rzmq", ["1.0.0"]              #(MIT license)
   gem.add_runtime_dependency "filewatch", ["0.5.1"]             #(BSD license)
@@ -68,6 +70,8 @@ Gem::Specification.new do |gem|
   gem.add_runtime_dependency "varnish-rb"                       #(MIT license)
   gem.add_runtime_dependency "mail"                             #(MIT license)
   gem.add_runtime_dependency "rbnacl"                           #(MIT license)
+  gem.add_runtime_dependency "sequel"                           #(MIT license)
+  gem.add_runtime_dependency "jdbc-sqlite3"                      #(MIT license)
 
   if RUBY_PLATFORM == 'java'
     gem.platform = RUBY_PLATFORM

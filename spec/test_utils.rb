@@ -43,7 +43,7 @@ module LogStash
 
     def sample(event, &block)
       default_type = @default_type || "default"
-      default_tags = @default_tags || []
+      default_tags = @default_tags || nil
       config = get_config
       agent = LogStash::Agent.new
       agent.instance_eval { parse_options(["--quiet"]) }
@@ -54,8 +54,6 @@ module LogStash
         plugin.register
       end
 
-      multiple_events = event.is_a?(Array)
-
       filters = @filters
       name = event.to_s
       name = name[0..50] + "..." if name.length > 50
@@ -65,18 +63,20 @@ module LogStash
           event = [event] unless event.is_a?(Array)
           event = event.collect do |e| 
             if e.is_a?(String)
-              LogStash::Event.new("@message" => e, "@type" => default_type,
-                                  "@tags" => default_tags)
-            else
-              LogStash::Event.new(e)
+              e = { "message" => e, "type" => default_type }
+              e["tags"] = default_tags.clone unless default_tags.nil?
             end
+            next LogStash::Event.new(e)
           end
           
           results = []
+          count = 0
           event.each do |e|
             filters.each do |filter|
               next if e.cancelled?
-              filter.filter(e)
+              filter.filter(e) do |newevent|
+                results << newevent unless e.cancelled?
+              end
             end
             results << e unless e.cancelled?
           end
@@ -100,11 +100,7 @@ module LogStash
           @results = results
         end # before :all
 
-        if multiple_events
-          subject { @results }
-        else
-          subject { @results.first }
-        end
+        subject { @results.length > 1 ? @results: @results.first }
         it("when processed", &block)
       end
     end # def sample

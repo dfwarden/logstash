@@ -32,10 +32,6 @@ class LogStash::Inputs::RabbitMQ < LogStash::Inputs::Threadable
   # Your amqp password
   config :password, :validate => :password, :default => "guest"
 
-  # The name of the queue. Depricated due to conflicts with puppet naming convention.
-  # Replaced by 'queue' variable. See LOGSTASH-755
-  config :name, :validate => :string, :deprecated => true
-
   # The name of the queue.
   config :queue, :validate => :string, :default => ""
 
@@ -87,19 +83,12 @@ class LogStash::Inputs::RabbitMQ < LogStash::Inputs::Threadable
     super
 
     @format ||= "json_event"
-
+    @codec = "json"
   end # def initialize
 
   public
   def register
-
-    if @name
-      if @queue
-        @logger.error("'name' and 'queue' are the same setting, but 'name' is deprecated. Please use only 'queue'")
-      end
-      @queue = @name
-    end   
-
+    enable_codecs
     @logger.info("Registering input #{@url}")
     require "bunny" # rubygem 'bunny'
     @vhost ||= "/"
@@ -138,9 +127,9 @@ class LogStash::Inputs::RabbitMQ < LogStash::Inputs::Threadable
       @bunnyqueue.bind(@exchange, :key => @key)
 
       @bunnyqueue.subscribe({:ack => @ack}) do |data|
-        e = to_event(data[:payload], @amqpurl)
-        if e
-          queue << e
+        @codec.decode(data[:payload]) do |event|
+          event["source"] = @amqpurl
+          queue << event
         end
       end # @bunnyqueue.subscribe
 

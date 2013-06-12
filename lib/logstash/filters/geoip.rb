@@ -24,10 +24,6 @@ class LogStash::Filters::GeoIP < LogStash::Filters::Base
 
   # The field containing IP address, hostname is also OK. If this field is an
   # array, only the first value will be used.
-  config :field, :validate => :string, :deprecated => true
-
-  # The field containing IP address, hostname is also OK. If this field is an
-  # array, only the first value will be used.
   config :source, :validate => :string
 
   # Array of geoip fields that we want to be included in our event.
@@ -39,6 +35,11 @@ class LogStash::Filters::GeoIP < LogStash::Filters::Base
   # city_name, continent_code, country_code2, country_code3, country_name,
   # dma_code, ip, latitude, longitude, postal_code, region_name, timezone
   config :fields, :validate => :array
+
+  # Specify into what field you want the geoip data.
+  # This can be useful for example if you have a src_ip and dst_ip and want
+  # information of both IP's
+  config :target, :validate => :string, :default => 'geoip'
 
   public
   def register
@@ -79,14 +80,6 @@ class LogStash::Filters::GeoIP < LogStash::Filters::Base
       raise RuntimeException.new "This GeoIP database is not currently supported"
     end
 
-    #TODO(electrical): Remove this when removing the field variable
-    if @field
-      if @source
-        logger.error("'field' and 'source' are the same setting, but 'field' is deprecated. Please use only 'source'")
-      end
-      @source = @field
-    end
-
   end # def register
 
   public
@@ -108,17 +101,17 @@ class LogStash::Filters::GeoIP < LogStash::Filters::Base
 
     geo_data_hash = geo_data.to_hash
     geo_data_hash.delete(:request)
-    event["geoip"] = {} if event["geoip"].nil?
+    event[@target] = {} if event[@target].nil?
     geo_data_hash.each do |key, value|
       if @fields.nil? || @fields.empty?
         # no fields requested, so add all geoip hash items to
         # the event's fields.
         # convert key to string (normally a Symbol)
-        event["geoip"][key.to_s] = value
+        event[@target][key.to_s] = value
       elsif @fields.include?(key.to_s)
         # Check if the key is in our fields array
         # convert key to string (normally a Symbol)
-        event["geoip"][key.to_s] = value
+        event[@target][key.to_s] = value
       end
     end # geo_data_hash.each
     filter_matched(event)

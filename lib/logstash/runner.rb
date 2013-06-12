@@ -57,17 +57,14 @@ class LogStash::Runner
     LogStash::Util::set_thread_name(self.class.name)
     $: << File.join(File.dirname(__FILE__), "..")
 
-    if args.empty?
-      $stderr.puts "No arguments given."
-      return 1
-    end
-
     if RUBY_VERSION < "1.9.2"
       $stderr.puts "Ruby 1.9.2 or later is required. (You are running: " + RUBY_VERSION + ")"
       return 1
     end
 
     Stud::untrap("INT", @startup_interruption_trap)
+
+    args = [nil] if args.empty?
 
     @runners = []
     while !args.empty?
@@ -81,7 +78,7 @@ class LogStash::Runner
     end
 
     # Avoid running test/unit's at_exit crap
-    if status.empty?
+    if status.empty? || status.first.nil?
       exit(0)
     else
       exit(status.first)
@@ -91,9 +88,7 @@ class LogStash::Runner
   def run(args)
     command = args.shift
     commands = {
-      "-v" => lambda { emit_version(args) },
-      "-V" => lambda { emit_version(args) },
-      "--version" => lambda { emit_version(args) },
+      "version" => lambda { emit_version(args) },
       "agent" => lambda do
         require "logstash/agent"
         agent = LogStash::Agent.new
@@ -105,6 +100,12 @@ class LogStash::Runner
         web = LogStash::Web::Runner.new
         @runners << web
         return web.run(args)
+      end,
+      "kibana" => lambda do
+        require "logstash/kibana"
+        kibana = LogStash::Kibana::Runner.new
+        @runners << kibana
+        return kibana.run(args)
       end,
       "test" => lambda do
         $: << File.join(File.dirname(__FILE__), "..", "..", "test")
@@ -203,8 +204,18 @@ class LogStash::Runner
       else
         $stderr.puts "No such command #{command.inspect}"
       end
+      $stderr.puts "Usage: logstash <command> [command args]"
+      $stderr.puts "Run a command with the --help flag to see the arguments."
+      $stderr.puts "For example: logstash agent --help"
+      $stderr.puts
+      # hardcode the available commands to reduce confusion.
       $stderr.puts "Available commands:"
-      $stderr.puts commands.keys.map { |s| "  #{s}" }.join("\n")
+      $stderr.puts "  agent - runs the logstash agent"
+      $stderr.puts "  version - emits version info about this logstash"
+      $stderr.puts "  web - runs the logstash web ui"
+      $stderr.puts "  kibana - runs the kibana web ui"
+      $stderr.puts "  rspec - runs tests"
+      #$stderr.puts commands.keys.map { |s| "  #{s}" }.join("\n")
       exit 1
     end
 

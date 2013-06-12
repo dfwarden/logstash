@@ -1,9 +1,16 @@
 require "json"
 require "time"
 require "date"
-require "logstash/time_addon"
 require "logstash/namespace"
 require "uri"
+
+# Use a custom serialization for jsonifying Time objects.
+# TODO(sissel): Put this in a separate file.
+class Time
+  def to_json(*args)
+    return iso8601(3).to_json(*args)
+  end
+end
 
 # the logstash event object.
 #
@@ -35,14 +42,22 @@ module LogStash::EventV1
     @cancelled = false
 
     @data = data
-    @data["@timestamp"] = LogStash::Time.now if !@data.include?("@timestamp")
+    @data["@timestamp"] = ::Time.now.utc if !@data.include?("@timestamp")
     @data["@version"] = "1" if !@data.include?("@version")
   end # def initialize
 
+  # Add class methods on inclusion.
   public
-  def self.from_json(json)
-    return self.new(JSON.parse(json))
-  end # def self.from_json
+  def self.included(klass)
+    klass.extend(ClassMethods)
+  end # def included
+
+  module ClassMethods
+    public
+    def from_json(json)
+      return self.new(JSON.parse(json))
+    end # def from_json
+  end
 
   public
   def cancel
@@ -62,7 +77,12 @@ module LogStash::EventV1
   # Create a deep-ish copy of this event.
   public
   def clone
-    return self.class.new(@data.clone)
+    copy = {}
+    @data.each do |k,v|
+      # TODO(sissel): Recurse if this is a hash/array?
+      copy[k] = v.clone
+    end
+    return self.class.new(copy)
   end # def clone
 
   public
@@ -85,12 +105,24 @@ module LogStash::EventV1
   # field-related access
   public
   def [](key)
-    # TODO(sissel): Implement
+    if key[0] == '['
+      val = @data
+      key.gsub(/(?<=\[).+?(?=\])/).each do |tok|
+        if val.is_a? Array
+          val = val[tok.to_i]
+        else
+          val = val[tok]
+        end
+      end
+      return val
+    else
+      return @data[key]
+    end
   end # def []
   
   public
   def []=(key, value)
-    # TODO(sissel): Implement
+    @data[key] = value
   end # def []=
 
   public
@@ -104,7 +136,7 @@ module LogStash::EventV1
   end # def to_json
 
   def to_hash
-    raise DeprecatedMethod
+    return @data
   end # def to_hash
 
   public
@@ -120,8 +152,9 @@ module LogStash::EventV1
   # Append an event to this one.
   public
   def append(event)
-    raise NotImplementedError, "LogStash::EventV1#append needs implementing"
-  end
+    # non-destructively merge that event with ourselves.
+    LogStash::Util.hash_merge(@data, event.to_hash)
+  end # append
 
   # Remove a field. Returns the value of that field when deleted
   public
@@ -157,40 +190,45 @@ module LogStash::EventV1
 
       if key == "+%s"
         # Got %{+%s}, support for unix epoch time
-        if RUBY_ENGINE != "jruby"
-          # This is really slow. See LOGSTASH-217
-          Time.parse(self.timestamp).to_i
-        else
-          datetime = @@date_parser.parseDateTime(self.timestamp)
-          (datetime.getMillis / 1000).to_i
-        end
+        next @data["@timestamp"].to_i
       elsif key[0,1] == "+"
-        # We got a %{+TIMEFORMAT} so use joda to format it.
-        if RUBY_ENGINE != "jruby"
-          # This is really slow. See LOGSTASH-217
-          datetime = Date.parse(self.timestamp)
-          format = key[1 .. -1]
-          datetime.strftime(format)
-        else
-          datetime = @@date_parser.parseDateTime(self.timestamp)
-          format = key[1 .. -1]
-          datetime.toString(format) # return requested time format
-        end
+        t = @data["@timestamp"]
+        formatter = org.joda.time.format.DateTimeFormat.forPattern(key[1 .. -1])\
+          .withZone(org.joda.time.DateTimeZone::UTC)
+        #next org.joda.time.Instant.new(t.tv_sec * 1000 + t.tv_usec / 1000).toDateTime.toString(formatter)
+        # Invoke a specific Instant constructor to avoid this warning in JRuby
+        #  > ambiguous Java methods found, using org.joda.time.Instant(long)
+        org.joda.time.Instant.java_class.constructor(Java::long).new_instance(
+          t.tv_sec * 1000 + t.tv_usec / 1000
+        ).to_java.toDateTime.toString(formatter)
       else
-        # Use an event field.
         value = self[key]
-
         case value
-        when nil
-          tok # leave the %{foo} if this field does not exist in this event.
-        when Array
-          value.join(",") # Join by ',' if value is an array
-        when Hash
-          value.to_json # Convert hashes to json
-        else
-          value # otherwise return the value
-        end
-      end
-    end
+          when nil
+            tok # leave the %{foo} if this field does not exist in this event.
+          when Array
+            value.join(",") # Join by ',' if value is an array
+          when Hash
+            value.to_json # Convert hashes to json
+          else
+            value # otherwise return the value
+        end # case value
+      end # 'key' checking
+    end # format.gsub...
   end # def sprintf
+
+  # Shims to remove after event v1 is the default.
+  def tags=(value); self["tags"] = value; end
+  def tags; return self["tags"]; end
+  def message=(value); self["message"] = value; end
+  def source=(value); self["source"] = value; end
+  def type=(value); self["type"] = value; end
+  def type; return self["type"]; end
+  def fields; return self.to_hash; end
+
+  def tag(value)
+    # Generalize this method for more usability
+    self["tags"] ||= []
+    self["tags"] << value unless self["tags"].include?(value)
+  end
 end # module LogStash::EventV1

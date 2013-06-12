@@ -41,33 +41,20 @@ class LogStash::Filters::Grep < LogStash::Filters::Base
   # a regular expression.
   config :match, :validate => :hash, :default => {}
 
-  # Short-hand for matching
-  #
-  #     filter {
-  #       grep {
-  #         # This 'match' usage
-  #         match => [ "fieldname", "pattern" ]
-  #
-  #         # is the same as this:
-  #         fieldname => "pattern"
-  #       }
-  #     }
-  #
-  # It is recommended to use 'match' instead of this.
-  config /[A-Za-z0-9_-]+/, :validate => :string, :deprecated => true
-
   public
   def register
     @patterns = Hash.new { |h,k| h[k] = [] }
-      # TODO(sissel): 
-    @match.merge(@config).each do |field, pattern|
-      # Skip known config names
-      next if (RESERVED + ["negate", "match", "drop"]).include?(field)
 
-      re = Regexp.new(pattern)
-      @patterns[field] << re
-      @logger.debug("Registered grep", :type => @type, :field => field,
-                    :pattern => pattern, :regexp => re)
+      # TODO(sissel): 
+    @match.each do |field, pattern|
+
+      pattern = [pattern] if pattern.is_a?(String)
+      pattern.each do |p|
+        re = Regexp.new(p)
+        @patterns[field] << re
+        @logger.debug? and @logger.debug("Registered grep", :type => @type, :field => field,
+                    :pattern => p, :regexp => re)
+      end
     end # @match.merge.each
   end # def register
 

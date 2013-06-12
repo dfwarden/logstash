@@ -15,20 +15,21 @@ describe LogStash::Filters::Mutate do
           replace => [ "replaceme", "hello world" ]
           replace => [ "newfield", "newnew" ]
           update => [ "nosuchfield", "weee" ]
+          update => [ "updateme", "updated" ]
           remove => [ "removeme" ]
         }
       }
     CONFIG
 
-    event = { "@fields" => {
+    event = {
       "lowerme" => [ "ExAmPlE" ],
       "upperme" => [ "ExAmPlE" ],
       "intme" => [ "1234", "7890.4", "7.9" ],
       "floatme" => [ "1234.455" ],
       "rename1" => [ "hello world" ],
+      "updateme" => [ "who cares" ],
       "replaceme" => [ "who cares" ],
       "removeme" => [ "something" ]
-      }
     }
 
     sample event do
@@ -43,6 +44,7 @@ describe LogStash::Filters::Mutate do
       insist { subject }.include?("newfield")
       insist { subject["newfield"] } == "newnew"
       reject { subject }.include?("nosuchfield")
+      insist { subject["updateme"] } == "updated"
     end
   end
 
@@ -54,13 +56,16 @@ describe LogStash::Filters::Mutate do
         }
       }'
 
-    sample "@fields" => {
+    sample(
       "remove-me"  => "Goodbye!",
       "remove-me2" => 1234,
       "diedie"     => [1, 2, 3, 4],
       "survivor"   => "Hello."
-    } do
-      insist { subject.fields } == { "survivor" => "Hello." }
+    ) do
+      insist { subject["survivor"] } == "Hello."
+      reject { subject }.include?("remove-me")
+      reject { subject }.include?("remove-me2")
+      reject { subject }.include?("diedie")
     end
   end
 
@@ -72,10 +77,8 @@ describe LogStash::Filters::Mutate do
         }
       }'
 
-    sample "@fields" => {
-      "unicorns" => 1234
-    } do
-      insist { subject.fields } == { "unicorns" => "1234" }
+    sample("unicorns" => 1234) do
+      insist { subject["unicorns"] } == "1234"
     end
   end
 
@@ -87,12 +90,8 @@ describe LogStash::Filters::Mutate do
         }
       }'
 
-    sample "@fields" => {
-      "unicorns" => "Magnificient, but extinct, animals"
-    } do
-      insist { subject.fields } == {
-        "unicorns" => "Magnificient, and common, animals"
-      }
+    sample("unicorns" => "Magnificient, but extinct, animals") do
+      insist { subject["unicorns"] } == "Magnificient, and common, animals"
     end
   end
 
@@ -104,18 +103,13 @@ describe LogStash::Filters::Mutate do
         }
       }'
 
-    sample "@fields" => {
-      "unicorns" => [
-        "Magnificient extinct animals",
-        "Other extinct ideas"
+    sample("unicorns" => [ 
+      "Magnificient extinct animals", "Other extinct ideas" ]
+    ) do
+      insist { subject["unicorns"] } == [
+        "Magnificient common animals",
+        "Other common ideas"
       ]
-    } do
-      insist { subject.fields } == {
-        "unicorns" => [
-          "Magnificient common animals",
-          "Other common ideas"
-        ]
-      }
     end
   end
 
@@ -128,14 +122,9 @@ describe LogStash::Filters::Mutate do
         }
       }'
 
-    sample "@fields" => {
-      "colors" => "One red car",
-      "shapes" => "Four red squares"
-    } do
-      insist { subject.fields } == {
-        "colors" => "One blue car",
-        "shapes" => "Four red circles"
-      }
+    sample("colors" => "One red car", "shapes" => "Four red squares") do
+      insist { subject["colors"] } == "One blue car"
+      insist { subject["shapes"] } == "Four red circles"
     end
   end
 
@@ -143,7 +132,7 @@ describe LogStash::Filters::Mutate do
     config <<-CONFIG
       filter {
         grok {
-          pattern => "%{WORD:foo}"
+          match => [ "message", "%{WORD:foo}" ]
         }
         mutate {
           lowercase => "foo"
@@ -152,7 +141,7 @@ describe LogStash::Filters::Mutate do
     CONFIG
 
     sample "HELLO WORLD" do
-      insist { subject["foo"] } == ['hello']
+      insist { subject["foo"] } == "hello"
     end
   end
 
